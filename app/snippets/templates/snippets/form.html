@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>Code Friend</title>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.18.0/axios.min.js"></script>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.55.0/codemirror.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.55.0/mode/python/python.min.js"></script>
+
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.55.0/codemirror.min.css">
+    </head>
+    <body>
+        <form id="form-post-snippet" style="margin: 4rem;">
+            <p>Напишите метод, суммирующий числа a и b:</p>
+            <div>
+                <textarea id="input-code"></textarea>
+            </div>
+            <div style="margin:1rem 0;">
+                <button type="submit" id="button-submit" value="Проверить">Отправить на проверку</button>
+            </div>
+            <p id="p-progress"></p>
+        </form>
+
+        <script>
+            window.addEventListener('load', function () {
+                var editor = CodeMirror.fromTextArea(document.getElementById('input-code'), {
+                    lineNumbers: true,
+                    indentUnit: 4,
+                    mode: 'python',
+                })
+
+                const REQUEST_TIMEOUT = 500
+
+                function submitSnippetHandler (ev) {
+                    ev.preventDefault()
+
+                    var apiUrl = '{% url 'snippet_post' %}'
+
+                    function handleResponse (resp) {
+                        var status = resp.data.status
+
+                        if (status === 1) {
+                            finProgress('Код верный.')
+                        } else if (status === 2) {
+                            finProgress('Код ошибочный.')
+                        } else if (status === 3) {
+                            finProgress('Ошибка сервиса.')
+                        } else {
+                            setTimeout(function() {
+                                var pk = resp.data.pk
+                                axios.get(apiUrl + pk + '/')
+                                    .then(handleResponse)
+                                    .catch(function (err) {
+                                        finProgress('Ошибка на сервере.')
+                                    })
+                            }, REQUEST_TIMEOUT);
+                        }
+                    }
+
+                    function setFormState (state) {
+                        var elem = document.getElementById('button-submit')
+                        elem.disabled = !state
+                        editor.setOption('readOnly', !state)
+                    }
+
+                    function setProgress(message) {
+                        var elem = document.getElementById('p-progress')
+                        elem.innerHTML = message
+                    }
+
+                    function initProgress(message) {
+                        setProgress('Код проверяется…')
+                        setFormState(false)
+                    }
+
+                    function finProgress(message) {
+                        setProgress(message)
+                        setFormState(true)
+                    }
+
+                    initProgress()
+
+                    axios.post(apiUrl, {code: editor.getValue()})
+                        .then(handleResponse)
+                        .catch(function (err) {
+                            finProgress('Ошибка на сервере.')
+                        })
+                }
+
+                document.getElementById('form-post-snippet').addEventListener('submit', submitSnippetHandler)
+
+                axios.get('{% url 'latest' %}')
+                    .then(function(resp) {
+                        editor.setValue(resp.data.code)
+                    })
+                    .catch()
+            })
+        </script>
+
+    </body>
+</html>
